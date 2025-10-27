@@ -79,7 +79,7 @@ public class UIGodotAppView: UIView {
 
         let newSize = self.bounds.size
         guard newSize.width > 0, newSize.height > 0 else {
-            logger.warning("UIGodotAppView.resizeWindow: Ignoring zero or negative size: \(newSize)")
+            logger.warning("UIGodotAppView.resizeWindow: Ignoring zero or negative size.")
             return
         }
         
@@ -116,7 +116,7 @@ public class UIGodotAppView: UIView {
 
         if let instance = app.instance {
             if !instance.isStarted() {
-                let rendererNativeSurface = RenderingNativeSurfaceApple.create(layer: UInt(bitPattern: Unmanaged.passUnretained(renderingLayer!).toOpaque()))
+                let rendererNativeSurface = RenderingNativeSurfaceApple.create(layer: UInt(bitPattern: Unmanaged.passUnretained(renderingLayer).toOpaque()))
                 DisplayServerEmbedded.setNativeSurface(rendererNativeSurface)
                 instance.start()
                 let displayLink = CADisplayLink(target: self, selector: #selector(iterate))
