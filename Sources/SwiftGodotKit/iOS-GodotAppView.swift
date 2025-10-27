@@ -285,7 +285,9 @@ public class UIGodotAppView: UIView {
     }
     
     public override func didMoveToSuperview() {
-        commonInit()
+        if renderingLayer == nil {
+            commonInit()
+        }
         startGodotInstance()
     }
 
