@@ -53,10 +53,9 @@ public class UIGodotAppView: UIView {
     
     private func commonInit() {
         let renderingLayer = CAMetalLayer()
-        let size = max(UIScreen.main.bounds.size.width, UIScreen.main.bounds.size.height)
-        renderingLayer.frame.size = CGSize(width: size, height: size)
+
         renderingLayer.contentsScale = self.contentScaleFactor
-        
+
         layer.addSublayer(renderingLayer)
         self.renderingLayer = renderingLayer
     }
