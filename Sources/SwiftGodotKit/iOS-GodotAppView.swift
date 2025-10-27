@@ -81,9 +81,12 @@ public class UIGodotAppView: UIView {
             logger.warning("UIGodotAppView.resizeWindow: Ignoring zero or negative size.")
             return
         }
+
+        let x = Int32(newSize.width * self.contentScaleFactor)
+        let y = Int32(newSize.height * self.contentScaleFactor)
         
         embedded.resizeWindow(
-            size: Vector2i(x: Int32(self.bounds.size.width * self.contentScaleFactor), y: Int32(self.bounds.size.height * self.contentScaleFactor)),
+            size: Vector2i(x: x, y: y),
             id: Int32(DisplayServer.mainWindowId)
         )
     }
