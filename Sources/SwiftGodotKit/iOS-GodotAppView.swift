@@ -10,7 +10,7 @@ import SwiftGodot
 #if os(iOS)
 public struct GodotAppView: UIViewRepresentable {
     @SwiftUI.Environment(\.godotApp) var app: GodotApp?
-    var view = UIGodotAppView()
+    var view = UIGodotAppView(frame: CGRect.zero)
     
     public init() { }
 
@@ -23,7 +23,6 @@ public struct GodotAppView: UIViewRepresentable {
         app.start()
         view.contentScaleFactor = UIScreen.main.scale
         view.isMultipleTouchEnabled = true
-        view.frame = .fullScreen
         view.app = app
         return view
     }
