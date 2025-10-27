@@ -23,6 +23,7 @@ public struct GodotAppView: UIViewRepresentable {
         app.start()
         view.contentScaleFactor = UIScreen.main.scale
         view.isMultipleTouchEnabled = true
+        view.frame = .fullScreen
         view.app = app
         return view
     }
