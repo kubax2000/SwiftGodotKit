@@ -93,7 +93,7 @@ public class UIGodotAppView: UIView {
 
     public override func layoutSubviews() {
         if let renderingLayer {
-            logger.info("UIGodotAppView.layoutSubviews: updating renderingLayer frame to \(self.bounds)")
+            logger.info("UIGodotAppView.layoutSubviews: updating renderingLayer frame to \(String(describing: self.bounds))")
             renderingLayer.frame = self.bounds
         }
         if let instance = app?.instance {
