@@ -36,101 +36,136 @@ typealias TTGodotAppView = UIGodotAppView
 typealias TTGodotWindow = UIGodotWindow
 
 public class UIGodotAppView: UIView {
-    public var renderingLayer: CAMetalLayer? = nil
-    private var displayLink : CADisplayLink? = nil
-    
+    public override class var layerClass: AnyClass { CAMetalLayer.self }
+    public var renderingLayer: CAMetalLayer? { layer as? CAMetalLayer }
+
+    private var displayLink : CADisplayLink?
     private var embedded: DisplayServerEmbedded?
-    
     public var app: GodotApp?
+
+    private var didInitLayer = false
+    private var observers: [NSObjectProtocol] = []
 
     override init(frame: CGRect) {
         super.init(frame: frame)
     }
-    
     required init?(coder: NSCoder) {
         super.init(coder: coder)
     }
-    
-    private func commonInit() {
-        let renderingLayer = CAMetalLayer()
 
-        renderingLayer.contentsScale = self.contentScaleFactor
-
-        layer.addSublayer(renderingLayer)
-        self.renderingLayer = renderingLayer
-    }
-    
     deinit {
-        renderingLayer?.removeFromSuperlayer()
+        displayLink?.invalidate()
+        displayLink = nil
+        for o in observers { NotificationCenter.default.removeObserver(o) }
     }
-    
+
     public override var bounds: CGRect {
         didSet {
+            updateDrawableSize()
             resizeWindow()
         }
     }
-    
-    func resizeWindow() {
-        guard let embedded else {
-            logger.error("UIGodotApPView.resizeWindow invoked with no embedded window")
-            return
-        }
-
-        let newSize = self.bounds.size
-        guard newSize.width > 0, newSize.height > 0 else {
-            logger.warning("UIGodotAppView.resizeWindow: Ignoring zero or negative size.")
-            return
-        }
-
-        let x = Int32(newSize.width * self.contentScaleFactor)
-        let y = Int32(newSize.height * self.contentScaleFactor)
-        
-        embedded.resizeWindow(
-            size: Vector2i(x: x, y: y),
-            id: Int32(DisplayServer.mainWindowId)
-        )
-    }
 
     public override func layoutSubviews() {
-        if let renderingLayer {
-            logger.info("UIGodotAppView.layoutSubviews: updating renderingLayer frame to \(String(describing: self.bounds))")
-            renderingLayer.frame = self.bounds
-        }
-        if let instance = app?.instance {
-            if instance.isStarted() {
-                if embedded == nil {
-                    embedded = DisplayServerEmbedded(nativeHandle: DisplayServer.shared.handle!)
-                }
-                resizeWindow()
-            }
-        }
         super.layoutSubviews()
-    }
-    
-    func startGodotInstance() {
-        guard let app else {
-            return
-        }
+        configureMetalLayerIfNeeded()
+        updateDrawableSize()
 
-        guard let renderingLayer else {
-            logger.error("startGodotInstance: renderingLayer is nil. commonInit() may not have run.")
-            return
-        }
-
-        if let instance = app.instance {
-            if !instance.isStarted() {
-                let rendererNativeSurface = RenderingNativeSurfaceApple.create(layer: UInt(bitPattern: Unmanaged.passUnretained(renderingLayer).toOpaque()))
-                DisplayServerEmbedded.setNativeSurface(rendererNativeSurface)
-                instance.start()
-                let displayLink = CADisplayLink(target: self, selector: #selector(iterate))
-                displayLink.add(to: .current, forMode: RunLoop.Mode.default)
-                self.displayLink = displayLink
-
-                app.startPending()
+        if let instance = app?.instance, instance.isStarted() {
+            if embedded == nil {
+                embedded = DisplayServerEmbedded(nativeHandle: DisplayServer.shared.handle!)
             }
-        } else {
-            app.queueStart(self)
+            resizeWindow()
         }
+    }
+
+    public override func didMoveToSuperview() {
+        super.didMoveToSuperview()
+        configureMetalLayerIfNeeded()
+        installAppLifecycleObservers()
+        startGodotInstance()
+    }
+
+    private func configureMetalLayerIfNeeded() {
+        guard !didInitLayer, let metal = renderingLayer else { return }
+        didInitLayer = true
+        metal.isOpaque = true
+        metal.contentsScale = contentScaleFactor
+        updateDrawableSize()
+    }
+
+    private func updateDrawableSize() {
+        guard let metal = renderingLayer else { return }
+        let scale = contentScaleFactor
+        let size  = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+        metal.drawableSize = CGSize(width: max(1, size.width), height: max(1, size.height))
+        logger.debug("drawableSize set to \(metal.drawableSize.debugDescription)")
+    }
+
+    func resizeWindow() {
+        guard let embedded, let metal = renderingLayer else {
+            logger.error("resizeWindow called before embedded/layer ready")
+            return
+        }
+        let ds = metal.drawableSize
+        embedded.resizeWindow(
+            size: Vector2i(x: Int32(ds.width), y: Int32(ds.height)),
+            id: Int32(DisplayServer.mainWindowId)
+        )
+        logger.debug("resizeWindow → \(Int(ds.width))×\(Int(ds.height))")
+    }
+
+    private func installAppLifecycleObservers() {
+        guard observers.isEmpty else { return }
+        let nc = NotificationCenter.default
+        observers.append(nc.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.displayLink?.isPaused = true
+            logger.debug("DisplayLink paused (willResignActive)")
+        })
+        observers.append(nc.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.updateDrawableSize()
+            self?.resizeWindow()
+            self?.displayLink?.isPaused = false
+            logger.debug("DisplayLink resumed (didBecomeActive)")
+        })
+    }
+
+    func startGodotInstance() {
+        guard let app, let instance = app.instance else { return }
+        guard !instance.isStarted() else { return }
+
+        configureMetalLayerIfNeeded()
+        updateDrawableSize()
+        guard let metal = renderingLayer else { return }
+
+        let ptr = UInt(bitPattern: Unmanaged.passUnretained(metal).toOpaque())
+        logger.debug("Setting native surface to layer ptr \(String(format:"0x%lx", ptr))")
+        let native = RenderingNativeSurfaceApple.create(layer: ptr)
+        DisplayServerEmbedded.setNativeSurface(native)
+
+        instance.start()
+
+        let displayLink = CADisplayLink(target: self, selector: #selector(iterate))
+        displayLink.add(to: .main, forMode: .common)
+        self.displayLink = displayLink
+
+        app.startPending()
+    }
+
+    @objc
+    func iterate() {
+        if let instance = app?.instance, instance.isStarted() {
+            instance.iteration()
+        }
+    }
+
+    public override func removeFromSuperview() {
+        displayLink?.invalidate()
+        displayLink = nil
+        if let instance = app?.instance {
+            GodotInstance.destroy(instance: instance)
+        }
+        super.removeFromSuperview()
     }
 
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -277,31 +312,6 @@ public class UIGodotAppView: UIView {
                 displayServer.touchesCanceled(idx: Int32(touchId), window: windowId)
             }
         }()
-    }
-    
-    public override func removeFromSuperview() {
-        displayLink?.invalidate()
-        displayLink = nil
-        
-        if let instance = app?.instance {
-            GodotInstance.destroy(instance: instance)
-        }
-    }
-    
-    public override func didMoveToSuperview() {
-        if renderingLayer == nil {
-            commonInit()
-        }
-        startGodotInstance()
-    }
-
-    @objc
-    func iterate() {
-        if let instance = app?.instance {
-            if instance.isStarted() {
-                instance.iteration()
-            }
-        }
     }
 }
 #endif
