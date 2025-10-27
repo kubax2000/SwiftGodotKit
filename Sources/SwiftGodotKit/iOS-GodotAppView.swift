@@ -10,7 +10,7 @@ import SwiftGodot
 #if os(iOS)
 public struct GodotAppView: UIViewRepresentable {
     @SwiftUI.Environment(\.godotApp) var app: GodotApp?
-    var view = UIGodotAppView(frame: CGRect.zero)
+    var view = UIGodotAppView()
     
     public init() { }
 
