@@ -76,6 +76,12 @@ public class UIGodotAppView: UIView {
             logger.error("UIGodotApPView.resizeWindow invoked with no embedded window")
             return
         }
+
+        let newSize = self.bounds.size
+        guard newSize.width > 0, newSize.height > 0 else {
+            logger.warning("UIGodotAppView.resizeWindow: Ignoring zero or negative size: \(newSize)")
+            return
+        }
         
         embedded.resizeWindow(
             size: Vector2i(x: Int32(self.bounds.size.width * self.contentScaleFactor), y: Int32(self.bounds.size.height * self.contentScaleFactor)),
@@ -102,6 +108,12 @@ public class UIGodotAppView: UIView {
         guard let app else {
             return
         }
+
+        guard let renderingLayer else {
+            logger.error("startGodotInstance: renderingLayer is nil. commonInit() may not have run.")
+            return
+        }
+
         if let instance = app.instance {
             if !instance.isStarted() {
                 let rendererNativeSurface = RenderingNativeSurfaceApple.create(layer: UInt(bitPattern: Unmanaged.passUnretained(renderingLayer!).toOpaque()))
