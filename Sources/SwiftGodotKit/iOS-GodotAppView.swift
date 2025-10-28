@@ -73,7 +73,14 @@ public class UIGodotAppView: UIView {
             app?.instance = nil
         }
     }
-    
+
+    public override func willMove(toSuperview newSuperview: UIView?) {
+        super.willMove(toSuperview: newSuperview)
+        if newSuperview == nil {             // being detached
+            teardownGodot()
+        }
+    }
+
     deinit {
         teardownGodot()
     }
