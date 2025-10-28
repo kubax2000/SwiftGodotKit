@@ -82,6 +82,15 @@ public class UIGodotAppView: UIView {
         }
     }
 
+    public override func didMoveToWindow() {
+        super.didMoveToWindow()
+
+        if window == nil {
+            // Detached: ALWAYS teardown here
+            teardownGodot()
+        }
+    }
+
     deinit {
         teardownGodot()
     }
