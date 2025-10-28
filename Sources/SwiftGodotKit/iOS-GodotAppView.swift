@@ -30,6 +30,10 @@ public struct GodotAppView: UIViewRepresentable {
     public func updateUIView(_ uiView: UIGodotAppView, context: Context) {
         uiView.startGodotInstance()
     }
+
+    public static func dismantleUIView(_ uiView: UIGodotAppView, coordinator: ()) {
+        uiView.teardownGodot()               // ensure cleanup
+    }
 }
 
 typealias TTGodotAppView = UIGodotAppView
@@ -60,9 +64,18 @@ public class UIGodotAppView: UIView {
         layer.addSublayer(renderingLayer)
         self.renderingLayer = renderingLayer
     }
+
+    func teardownGodot() {
+        displayLink?.invalidate()
+        displayLink = nil
+        if let instance = app?.instance {
+            GodotInstance.destroy(instance: instance)
+            app?.instance = nil
+        }
+    }
     
     deinit {
-        renderingLayer?.removeFromSuperlayer()
+        teardownGodot()
     }
     
     public override var bounds: CGRect {
@@ -265,12 +278,7 @@ public class UIGodotAppView: UIView {
     }
     
     public override func removeFromSuperview() {
-        displayLink?.invalidate()
-        displayLink = nil
-        
-        if let instance = app?.instance {
-            GodotInstance.destroy(instance: instance)
-        }
+        teardownGodot()
     }
     
     public override func didMoveToSuperview() {
